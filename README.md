@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MOPOL — Verification as a Service
 
-## Getting Started
+**Prove everything. Reveal nothing.** The Employability ID platform: a private, candidate-owned identity for work — like a NIN/BVN, but for employment.
 
-First, run the development server:
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The vault (`data/db.json`) self-seeds on first run with a demo employer, a demo
+employee, and a real seeded résumé so the AI works out of the box.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Demo accounts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Role     | Email           | Password   | Notes                                 |
+|----------|-----------------|------------|---------------------------------------|
+| Employee | `amara@demo.io` | `demo1234` | Owns Employability ID `BSQ-D3MO-2026` |
+| Employer | `hr@demo.io`    | `demo1234` | Sterling Labs                         |
 
-## Learn More
+## The full flow
 
-To learn more about Next.js, take a look at the following resources:
+1. **Home** (`/`) — live fact-proof demo + choreographed network sphere.
+2. **Register** (`/register`) — pick Employee or Employer.
+3. **Onboarding**
+   - `/onboarding/employee` — 4-step wizard: basics → career → **documents (AI reads them)** → privacy rules.
+   - `/onboarding/employer` — company, industry, size.
+4. **Employee vault** (`/dashboard/employee`) — Employability ID card, Trust Score,
+   profile records, **sealed documents** (CV/certificates — AI-only, never public), privacy switches, remarks.
+5. **Employer console** (`/dashboard/employer`) → **Verify** (`/verify?eid=…`):
+   - verified, privacy-filtered profile
+   - **50-point screening checklist** — tick any of 50 requirements (or paste your own);
+     `auto` checks are proven from vault data, `ai` checks are evaluated against sealed documents
+   - **Ask the AI** — free-form questions about the candidate, answered from sealed documents
+   - zero-knowledge age proofs + employer remarks that feed the Trust Score
+6. **Guest mode** — `/verify` without an account: restricted preview only.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## AI layer (`src/lib/ai.ts`)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Default: fully offline** — extractive résumé parser (skills/roles/education/years),
+  TF-IDF-style retrieval for Q&A and requirement checks. No key needed.
+- **Upgrade: any OpenAI-compatible LLM** — set env vars and it takes over automatically:
 
-## Deploy on Vercel
+```bash
+AI_API_KEY=...            # OpenAI, Groq, OpenRouter, Together…
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Documents are **never** returned raw — the AI answers with short evidence-grounded replies,
+and every question is written to the `ai_queries` audit trail.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Supabase (production backend)
+
+The app runs on a zero-setup local JSON vault. To go real:
+
+```bash
+cp .env.example .env.local
+# fill NEXT_PUBLIC_SUPABASE_URL + keys, then:
+# run supabase/schema.sql in your Supabase SQL editor
+```
+
+`supabase/schema.sql` mirrors every model 1:1 (users, employee_profiles, privacy_settings,
+employer_remarks, **documents**, **ai_queries**), includes the trust-score trigger, the
+`prove_age()` ZK function, and RLS. `src/lib/supabase.ts` exposes ready client factories.
+
+## Stack
+
+Next.js 16 (App Router) · React 19 · Tailwind v4 · bcrypt sessions · HMAC proof receipts ·
+pdf-parse for document extraction · Supabase-ready · LLM-ready
+
+---
+© 2026 Mopol
