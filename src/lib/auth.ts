@@ -1,7 +1,9 @@
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { readDB, writeDB, type User } from "./db";
+import { type User } from "./db";
+import { createSessionRow, deleteSessionByToken, findSessionUserId } from "./data/sessions";
+import { findUserById } from "./data/users";
 
 export const COOKIE = "mpl_session";
 
@@ -10,10 +12,7 @@ export const checkPassword = (pw: string, hash: string) => bcrypt.compareSync(pw
 
 export async function createSession(userId: string) {
   const token = randomBytes(24).toString("hex");
-  const db = readDB();
-  db.sessions = db.sessions.filter((s) => s.user_id !== userId);
-  db.sessions.push({ token, user_id: userId, created_at: new Date().toISOString() });
-  writeDB(db);
+  await createSessionRow(token, userId);
   const store = await cookies();
   store.set(COOKIE, token, {
     httpOnly: true,
@@ -26,11 +25,7 @@ export async function createSession(userId: string) {
 export async function destroySession() {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
-  if (token) {
-    const db = readDB();
-    db.sessions = db.sessions.filter((s) => s.token !== token);
-    writeDB(db);
-  }
+  if (token) await deleteSessionByToken(token);
   store.delete(COOKIE);
 }
 
@@ -38,10 +33,9 @@ export async function getCurrentUser(): Promise<User | null> {
   const store = await cookies();
   const token = store.get(COOKIE)?.value;
   if (!token) return null;
-  const db = readDB();
-  const session = db.sessions.find((s) => s.token === token);
-  if (!session) return null;
-  return db.users.find((u) => u.id === session.user_id) ?? null;
+  const userId = await findSessionUserId(token);
+  if (!userId) return null;
+  return findUserById(userId);
 }
 
 /** Strip secrets before serializing a user to the client. */
