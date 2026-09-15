@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
-import { UPLOAD_DIR } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { uid } from "@/lib/util";
+import { uploadObject } from "@/lib/data/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,9 +30,8 @@ export async function POST(req: Request) {
       { status: 400 }
     );
 
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   const name = `${uid(kind)}${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), Buffer.from(await file.arrayBuffer()));
+  await uploadObject(name, Buffer.from(await file.arrayBuffer()), file.type || undefined);
 
   return NextResponse.json({ ok: true, url: `/api/files/${name}` });
 }

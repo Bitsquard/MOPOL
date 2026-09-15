@@ -1,35 +1,63 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
-import { UPLOAD_DIR } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+import { getPrivacy } from "@/lib/data/privacy";
+import { findUserByProfilePic } from "@/lib/data/users";
+import { findProfileByCvUrl } from "@/lib/data/profiles";
+import { findDocumentByUrl } from "@/lib/data/documents";
+import { signedUrl } from "@/lib/data/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TYPES: Record<string, string> = {
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".webp": "image/webp",
-  ".gif": "image/gif",
-  ".pdf": "application/pdf",
-  ".txt": "text/plain; charset=utf-8",
-  ".md": "text/markdown; charset=utf-8",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-};
-
+/**
+ * Serve a stored file — with authorization applied per the same visibility
+ * model as the verify route:
+ *   - profile photo : owner, or anyone the owner exposes photos to (photo gate)
+ *   - CV            : owner, or an EMPLOYER when the owner's cv gate is on
+ *                     (guests never — cv is guest-restricted in verify)
+ *   - other sealed documents : owner ONLY (employers get AI answers, never raw)
+ * Authorized requests are redirected to a short-lived signed URL.
+ */
 export async function GET(_req: Request, ctx: { params: Promise<{ name: string }> }) {
-  const { name } = await ctx.params;
-  const safe = path.basename(name); // no path traversal
-  const file = path.join(UPLOAD_DIR, safe);
-  if (!fs.existsSync(file)) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  const { name: raw } = await ctx.params;
+  const name = path.basename(raw); // no path traversal
+  const url = `/api/files/${name}`;
 
-  const buf = fs.readFileSync(file);
-  return new Response(new Uint8Array(buf), {
-    headers: {
-      "Content-Type": TYPES[path.extname(safe).toLowerCase()] ?? "application/octet-stream",
-      "Cache-Control": "private, max-age=3600",
-    },
-  });
+  const viewer = await getCurrentUser();
+  const isSelf = (ownerId: string) => viewer?.id === ownerId;
+  const isEmployer = viewer?.role === "EMPLOYER";
+
+  // Resolve which resource this file is. Order matters: a CV file is also a
+  // document row, but the cv gate (not owner-only) governs it — check cv first.
+  let allowed = false;
+
+  const picUser = await findUserByProfilePic(url);
+  if (picUser) {
+    // photo: owner always; others iff the photo gate is on (not guest-restricted)
+    allowed = isSelf(picUser.id) || (await getPrivacy(picUser.id)).visible_fields.photo;
+  } else {
+    const cvProfile = await findProfileByCvUrl(url);
+    if (cvProfile) {
+      // cv: owner always; EMPLOYER iff cv gate on; guests never
+      allowed =
+        isSelf(cvProfile.user_id) ||
+        (isEmployer && (await getPrivacy(cvProfile.user_id)).visible_fields.cv);
+    } else {
+      const doc = await findDocumentByUrl(url);
+      if (doc) {
+        // sealed non-cv document: owner only
+        allowed = isSelf(doc.employee_id);
+      } else {
+        return NextResponse.json({ error: "Not found." }, { status: 404 });
+      }
+    }
+  }
+
+  if (!allowed)
+    return NextResponse.json({ error: "Not authorized to view this file." }, { status: 403 });
+
+  const signed = await signedUrl(name, 3600);
+  if (!signed) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  return NextResponse.redirect(signed);
 }

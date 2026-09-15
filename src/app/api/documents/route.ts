@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
 import path from "path";
-import { UPLOAD_DIR, type Document } from "@/lib/db";
+import { type Document } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { extractText, parseResume } from "@/lib/ai";
 import { uid } from "@/lib/util";
 import { documentsForEmployee, insertDocument, deleteDocument } from "@/lib/data/documents";
 import { findProfileByUserId, updateProfile } from "@/lib/data/profiles";
+import { uploadObject, removeObject } from "@/lib/data/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,9 +46,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "AI-readable documents must be PDF, TXT or MD." }, { status: 400 });
 
   const buf = Buffer.from(await file.arrayBuffer());
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
   const name = `${uid("doc")}${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
+  await uploadObject(name, buf, file.type || undefined);
 
   let text = "";
   let parseError: string | null = null;
@@ -106,7 +105,12 @@ export async function DELETE(req: Request) {
   const doc = await deleteDocument(id, user.id);
   if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
 
-  const file = path.join(UPLOAD_DIR, path.basename(doc.url));
-  if (fs.existsSync(file)) fs.unlinkSync(file);
+  if (doc.url) {
+    try {
+      await removeObject(path.basename(doc.url));
+    } catch {
+      // best-effort: the row is already gone; a stray object is harmless
+    }
+  }
   return NextResponse.json({ ok: true });
 }
