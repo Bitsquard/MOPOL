@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { readDB, defaultPrivacy, type VisibleFields } from "@/lib/db";
+import { type VisibleFields } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { computeTrust } from "@/lib/trust";
 import { ageFromDob, ageRangeLabel } from "@/lib/util";
+import { findProfileByEid } from "@/lib/data/profiles";
+import { findUserById } from "@/lib/data/users";
+import { getPrivacy } from "@/lib/data/privacy";
+import { remarksForEmployee } from "@/lib/data/remarks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,17 +24,18 @@ export async function POST(req: Request) {
   const eid = String(body.employability_id ?? "").trim().toUpperCase();
   if (!eid) return NextResponse.json({ error: "Enter an Employability ID." }, { status: 400 });
 
-  const db = readDB();
-  const profile = db.profiles.find((p) => p.employability_id.toUpperCase() === eid);
+  const profile = await findProfileByEid(eid);
   if (!profile)
     return NextResponse.json({ found: false, error: "No candidate found for this Employability ID." }, { status: 404 });
 
-  const owner = db.users.find((u) => u.id === profile.user_id)!;
+  const owner = await findUserById(profile.user_id);
+  if (!owner)
+    return NextResponse.json({ found: false, error: "No candidate found for this Employability ID." }, { status: 404 });
   const viewer = await getCurrentUser();
   const isSelf = viewer?.id === owner.id;
   const viewerRole = isSelf ? "OWNER" : viewer?.role === "EMPLOYER" ? "EMPLOYER" : "GUEST";
 
-  const privacy = db.privacy.find((p) => p.employee_id === owner.id) ?? defaultPrivacy(owner.id);
+  const privacy = await getPrivacy(owner.id);
   const vis: VisibleFields = { ...privacy.visible_fields };
 
   // Guests get a restricted preview regardless of candidate switches.
@@ -48,9 +53,7 @@ export async function POST(req: Request) {
     dob_display = { mode: "range", value: ageRangeLabel(age) };
   else dob_display = { mode: "hidden", value: null };
 
-  const allRemarks = db.remarks
-    .filter((r) => r.employee_id === owner.id)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const allRemarks = await remarksForEmployee(owner.id);
   const trust = computeTrust(allRemarks);
 
   const assertions = [

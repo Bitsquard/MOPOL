@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { readDB } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { publicCatalog } from "@/lib/requirements";
 

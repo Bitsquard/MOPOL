@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
-import { readDB, defaultPrivacy } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { REQUIREMENTS, type ReqContext, type ReqStatus } from "@/lib/requirements";
 import { evalAIRequirement, answerFromVault } from "@/lib/ai";
 import { ageFromDob } from "@/lib/util";
+import { findProfileByEid } from "@/lib/data/profiles";
+import { findUserById } from "@/lib/data/users";
+import { getPrivacy } from "@/lib/data/privacy";
+import { documentsForEmployee } from "@/lib/data/documents";
+import { remarksForEmployee } from "@/lib/data/remarks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,18 +32,18 @@ export async function POST(req: Request) {
   if (!ids.length && !custom)
     return NextResponse.json({ error: "Pick at least one requirement or paste a custom one." }, { status: 400 });
 
-  const db = readDB();
-  const profile = db.profiles.find((p) => p.employability_id.toUpperCase() === eid);
+  const profile = await findProfileByEid(eid);
   if (!profile) return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
 
-  const owner = db.users.find((u) => u.id === profile.user_id)!;
-  const privacy = db.privacy.find((p) => p.employee_id === owner.id) ?? defaultPrivacy(owner.id);
-  const docs = db.documents.filter((d) => d.employee_id === owner.id);
+  const owner = await findUserById(profile.user_id);
+  if (!owner) return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
+  const privacy = await getPrivacy(owner.id);
+  const docs = await documentsForEmployee(owner.id);
   const corpus = docs.map((d) => d.text_content);
   const recordText = [profile.career_history, profile.project_history, profile.skills.join(", ")].filter(Boolean).join("\n");
   if (recordText) corpus.push(recordText);
 
-  const remarks = db.remarks.filter((r) => r.employee_id === owner.id);
+  const remarks = await remarksForEmployee(owner.id);
   const age = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : NaN;
 
   const ctx: ReqContext = {

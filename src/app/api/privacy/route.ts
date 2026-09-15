@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { readDB, writeDB, defaultPrivacy, type VisibleFields } from "@/lib/db";
+import { type VisibleFields } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { getPrivacy, savePrivacy } from "@/lib/data/privacy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,12 +24,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "Only employee accounts have privacy controls." }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
-  const db = readDB();
-  let privacy = db.privacy.find((p) => p.employee_id === user.id);
-  if (!privacy) {
-    privacy = defaultPrivacy(user.id);
-    db.privacy.push(privacy);
-  }
+  const privacy = await getPrivacy(user.id);
 
   if (body.hide_exact_dob !== undefined) privacy.hide_exact_dob = Boolean(body.hide_exact_dob);
   if (body.show_age_range_only !== undefined)
@@ -40,6 +36,6 @@ export async function PUT(req: Request) {
     }
   }
 
-  writeDB(db);
-  return NextResponse.json({ ok: true, privacy });
+  const saved = await savePrivacy(privacy);
+  return NextResponse.json({ ok: true, privacy: saved });
 }

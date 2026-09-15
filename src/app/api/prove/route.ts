@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { readDB } from "@/lib/db";
 import { ageFromDob, proofHash, uid } from "@/lib/util";
+import { findProfileByEid } from "@/lib/data/profiles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +25,7 @@ export async function POST(req: Request) {
       (maxAge !== null && (Number.isNaN(maxAge) || maxAge < 0 || maxAge > 120)))
     return NextResponse.json({ error: "Age bounds must be between 0 and 120." }, { status: 400 });
 
-  const db = readDB();
-  const profile = db.profiles.find((p) => p.employability_id.toUpperCase() === eid);
+  const profile = await findProfileByEid(eid);
   if (!profile)
     return NextResponse.json({ found: false, error: "No candidate found for this Employability ID." }, { status: 404 });
   if (!profile.date_of_birth)

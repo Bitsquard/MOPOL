@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { readDB, writeDB, type AiQuery } from "@/lib/db";
+import { type AiQuery } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { answerFromVault } from "@/lib/ai";
 import { uid } from "@/lib/util";
+import { findProfileByEid } from "@/lib/data/profiles";
+import { documentsForEmployee } from "@/lib/data/documents";
+import { insertAiQuery } from "@/lib/data/ai_queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,12 +30,11 @@ export async function POST(req: Request) {
   if (question.length > 500)
     return NextResponse.json({ error: "Question too long — 500 characters max." }, { status: 400 });
 
-  const db = readDB();
-  const profile = db.profiles.find((p) => p.employability_id.toUpperCase() === eid);
+  const profile = await findProfileByEid(eid);
   if (!profile) return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
 
   // build the sealed corpus: documents + structured records
-  const docs = db.documents.filter((d) => d.employee_id === profile.user_id);
+  const docs = await documentsForEmployee(profile.user_id);
   const corpus: string[] = docs.map((d) => d.text_content);
   const records = [
     profile.headline && `Headline: ${profile.headline}`,
@@ -62,8 +64,7 @@ export async function POST(req: Request) {
     answer: answer.slice(0, 2000),
     created_at: new Date().toISOString(),
   };
-  db.ai_queries.push(log);
-  writeDB(db);
+  await insertAiQuery(log);
 
   return NextResponse.json({
     answer,

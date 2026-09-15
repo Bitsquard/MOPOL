@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { readDB, writeDB, defaultPrivacy, type User, type EmployeeProfile, type Role } from "@/lib/db";
+import { defaultPrivacy, type User, type EmployeeProfile, type Role } from "@/lib/db";
 import { createSession, hashPassword, publicUser } from "@/lib/auth";
 import { newEmployabilityId, uid } from "@/lib/util";
+import { findUserByEmail, insertUser } from "@/lib/data/users";
+import { allEmployabilityIds, insertProfile } from "@/lib/data/profiles";
+import { savePrivacy } from "@/lib/data/privacy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,8 +25,7 @@ export async function POST(req: Request) {
   if (role !== "EMPLOYEE" && role !== "EMPLOYER")
     return NextResponse.json({ error: "Choose an account type: Employee or Employer." }, { status: 400 });
 
-  const db = readDB();
-  if (db.users.some((u) => u.email === email))
+  if (await findUserByEmail(email))
     return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
 
   const user: User = {
@@ -39,11 +41,11 @@ export async function POST(req: Request) {
     onboarded: false,
     created_at: new Date().toISOString(),
   };
-  db.users.push(user);
+  await insertUser(user);
 
   let employability_id: string | null = null;
   if (role === "EMPLOYEE") {
-    employability_id = newEmployabilityId(new Set(db.profiles.map((p) => p.employability_id)));
+    employability_id = newEmployabilityId(new Set(await allEmployabilityIds()));
     const profile: EmployeeProfile = {
       user_id: user.id,
       employability_id,
@@ -58,11 +60,10 @@ export async function POST(req: Request) {
       trust_score: null,
       created_at: new Date().toISOString(),
     };
-    db.profiles.push(profile);
-    db.privacy.push(defaultPrivacy(user.id));
+    await insertProfile(profile);
+    await savePrivacy(defaultPrivacy(user.id));
   }
 
-  writeDB(db);
   await createSession(user.id);
   return NextResponse.json({ ok: true, user: publicUser(user), employability_id });
 }

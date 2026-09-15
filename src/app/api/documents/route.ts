@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { readDB, writeDB, UPLOAD_DIR, type Document } from "@/lib/db";
+import { UPLOAD_DIR, type Document } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { extractText, parseResume } from "@/lib/ai";
 import { uid } from "@/lib/util";
+import { documentsForEmployee, insertDocument, deleteDocument } from "@/lib/data/documents";
+import { findProfileByUserId, updateProfile } from "@/lib/data/profiles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,11 +23,7 @@ function strip(doc: Document) {
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
-  const db = readDB();
-  const docs = db.documents
-    .filter((d) => d.employee_id === user.id)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map(strip);
+  const docs = (await documentsForEmployee(user.id)).map(strip);
   return NextResponse.json({ documents: docs });
 }
 
@@ -64,7 +62,6 @@ export async function POST(req: Request) {
 
   const parsed = text ? parseResume(text) : null;
 
-  const db = readDB();
   const doc: Document = {
     id: uid("doc"),
     employee_id: user.id,
@@ -76,18 +73,19 @@ export async function POST(req: Request) {
     skills: parsed?.skills ?? [],
     created_at: new Date().toISOString(),
   };
-  db.documents.push(doc);
+  await insertDocument(doc);
 
   // merge extracted skills into the profile + attach CV url
-  const profile = db.profiles.find((p) => p.user_id === user.id);
+  const profile = await findProfileByUserId(user.id);
   if (profile) {
-    if (kind === "cv") profile.cv_url = doc.url;
+    const patch: Partial<typeof profile> = {};
+    if (kind === "cv") patch.cv_url = doc.url;
     if (parsed?.skills.length) {
       const merged = new Set([...profile.skills, ...parsed.skills]);
-      profile.skills = [...merged].slice(0, 20);
+      patch.skills = [...merged].slice(0, 20);
     }
+    if (Object.keys(patch).length) await updateProfile(user.id, patch);
   }
-  writeDB(db);
 
   return NextResponse.json({
     ok: true,
@@ -105,13 +103,10 @@ export async function DELETE(req: Request) {
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id") ?? "";
-  const db = readDB();
-  const idx = db.documents.findIndex((d) => d.id === id && d.employee_id === user.id);
-  if (idx === -1) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  const doc = await deleteDocument(id, user.id);
+  if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
 
-  const [doc] = db.documents.splice(idx, 1);
   const file = path.join(UPLOAD_DIR, path.basename(doc.url));
   if (fs.existsSync(file)) fs.unlinkSync(file);
-  writeDB(db);
   return NextResponse.json({ ok: true });
 }

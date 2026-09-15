@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { readDB, writeDB, type EmployerRemark } from "@/lib/db";
+import { type EmployerRemark } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { computeTrust } from "@/lib/trust";
 import { uid } from "@/lib/util";
+import { findProfileByEid } from "@/lib/data/profiles";
+import { remarksForEmployee, remarksByEmployer, insertRemark } from "@/lib/data/remarks";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,17 +14,15 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
-  const db = readDB();
   const remarks =
     user.role === "EMPLOYEE"
-      ? db.remarks.filter((r) => r.employee_id === user.id)
-      : db.remarks.filter((r) => r.employer_id === user.id);
+      ? await remarksForEmployee(user.id)
+      : await remarksByEmployer(user.id);
 
-  remarks.sort((a, b) => b.created_at.localeCompare(a.created_at));
   return NextResponse.json({ remarks });
 }
 
-/** Employer logs a structured remark; trust score is recomputed. */
+/** Employer logs a structured remark; the trust trigger recomputes the score. */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
@@ -41,8 +41,7 @@ export async function POST(req: Request) {
   if (!Number.isInteger(performance_rating) || performance_rating < 1 || performance_rating > 5)
     return NextResponse.json({ error: "Performance rating must be a whole number from 1 to 5." }, { status: 400 });
 
-  const db = readDB();
-  const profile = db.profiles.find((p) => p.employability_id.toUpperCase() === eid);
+  const profile = await findProfileByEid(eid);
   if (!profile)
     return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
   if (profile.user_id === user.id)
@@ -59,11 +58,11 @@ export async function POST(req: Request) {
     loan_free_status,
     created_at: new Date().toISOString(),
   };
-  db.remarks.push(remark);
+  await insertRemark(remark);
 
-  const trust = computeTrust(db.remarks.filter((r) => r.employee_id === profile.user_id));
-  profile.trust_score = trust?.score ?? null;
+  // The trg_refresh_trust trigger has updated the stored trust_score; recompute
+  // the richer response object from the current remark set.
+  const trust = computeTrust(await remarksForEmployee(profile.user_id));
 
-  writeDB(db);
   return NextResponse.json({ ok: true, remark, trust });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { readDB } from "@/lib/db";
 import { checkPassword, createSession, publicUser } from "@/lib/auth";
+import { findUserByEmail } from "@/lib/data/users";
+import { findProfileByUserId } from "@/lib/data/profiles";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,13 +11,12 @@ export async function POST(req: Request) {
   const email = String(body.email ?? "").trim().toLowerCase();
   const password = String(body.password ?? "");
 
-  const db = readDB();
-  const user = db.users.find((u) => u.email === email);
+  const user = await findUserByEmail(email);
   if (!user || !checkPassword(password, user.password_hash))
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
 
   await createSession(user.id);
-  const profile = db.profiles.find((p) => p.user_id === user.id) ?? null;
+  const profile = user.role === "EMPLOYEE" ? await findProfileByUserId(user.id) : null;
   return NextResponse.json({
     ok: true,
     user: publicUser(user),
