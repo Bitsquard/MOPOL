@@ -40,7 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local vault (self-seeds on first run)
-data/
+# local vault (self-seeds on first run) — anchored to repo root so it does
+# not also match src/lib/data/
+/data/
 
 !.env.example
