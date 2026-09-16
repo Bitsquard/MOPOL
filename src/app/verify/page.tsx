@@ -20,6 +20,8 @@ import {
   IconLock,
   IconFile,
   IconSparkle,
+  IconShield,
+  IconArrowRight,
 } from "@/components/ui";
 import { api, ProofConsole, RatingInput, Toggle, Reveal } from "@/components/client";
 import { RequirementsPanel, AskPanel } from "@/components/panels";

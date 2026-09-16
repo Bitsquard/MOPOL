@@ -93,7 +93,7 @@ export async function POST(req: Request) {
         `Employer screening requirement: "${custom.slice(0, 400)}". Based on the documents, does this candidate meet it? Answer directly with evidence, or say it isn't documented.`,
         corpus,
         {
-          name: owner.full_name,
+          name: owner.name,
           employability_id: profile.employability_id,
           headline: profile.headline ?? undefined,
           location: profile.location ?? undefined,
