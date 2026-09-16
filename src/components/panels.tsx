@@ -257,6 +257,54 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<QA[]>([]);
 
+  // Configurable Model State
+  const [showSettings, setShowSettings] = useState(false);
+  const [provider, setProvider] = useState<string>("nvidia");
+  const [apiKey, setApiKey] = useState<string>("");
+  const [modelName, setModelName] = useState<string>("z-ai/glm-5.3");
+  const [baseUrl, setBaseUrl] = useState<string>("https://integrate.api.nvidia.com/v1");
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    try {
+      const savedKey = localStorage.getItem("mopol_ai_key");
+      const savedModel = localStorage.getItem("mopol_ai_model");
+      const savedBase = localStorage.getItem("mopol_ai_base");
+      const savedProv = localStorage.getItem("mopol_ai_provider");
+      if (savedKey) setApiKey(savedKey);
+      if (savedModel) setModelName(savedModel);
+      if (savedBase) setBaseUrl(savedBase);
+      if (savedProv) setProvider(savedProv);
+    } catch {}
+  }, []);
+
+  function saveSettings() {
+    try {
+      if (apiKey) localStorage.setItem("mopol_ai_key", apiKey);
+      if (modelName) localStorage.setItem("mopol_ai_model", modelName);
+      if (baseUrl) localStorage.setItem("mopol_ai_base", baseUrl);
+      if (provider) localStorage.setItem("mopol_ai_provider", provider);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2000);
+    } catch {}
+  }
+
+  function applyModelPreset(p: "nvidia" | "google" | "openai" | "local") {
+    setProvider(p);
+    if (p === "nvidia") {
+      setBaseUrl("https://integrate.api.nvidia.com/v1");
+      setModelName("z-ai/glm-5.3");
+    } else if (p === "google") {
+      setBaseUrl("https://generativelanguage.googleapis.com/v1beta");
+      setModelName("gemini-1.5-flash");
+    } else if (p === "openai") {
+      setBaseUrl("https://api.openai.com/v1");
+      setModelName("gpt-4o-mini");
+    } else {
+      setModelName("local-extractive");
+    }
+  }
+
   async function ask(question: string) {
     if (!question.trim()) return;
     setBusy(true);
@@ -275,7 +323,14 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
         };
       }>("/api/ai/ask", {
         method: "POST",
-        body: JSON.stringify({ employability_id: employabilityId, question }),
+        body: JSON.stringify({
+          employability_id: employabilityId,
+          question,
+          api_key: apiKey || undefined,
+          model: modelName || undefined,
+          base_url: baseUrl || undefined,
+          provider: provider || undefined,
+        }),
       });
       setHistory((h) => [
         {
@@ -302,13 +357,115 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
         <span className="flex items-center gap-2">
           <IconSparkle className="size-4 text-trust" /> Ask the AI about this candidate
         </span>
-        <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-          <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          AI Firewall Active (OWASP LLM01/06)
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowSettings(!showSettings)}
+            className="cursor-pointer rounded-full border border-black/10 bg-paper/60 px-2.5 py-0.5 text-[11px] font-semibold text-ink/75 transition-all hover:border-trust hover:text-trust"
+          >
+            ⚙️ Model: <span className="font-mono text-trust">{modelName}</span>
+          </button>
+          <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            AI Firewall Active
+          </span>
+        </div>
       </CardHeader>
 
       <div className="p-6 sm:p-8">
+        {/* ============ MODEL SETTINGS ACCORDION ============ */}
+        {showSettings && (
+          <div className="mb-6 rounded-2xl border border-trust/20 bg-paper/60 p-4 text-xs transition-all">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-ink">AI Model Configuration</span>
+              <span className="text-[11px] text-ink/40">NVIDIA NIM / Gemini / OpenAI Compatible</span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => applyModelPreset("nvidia")}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-all ${
+                  provider === "nvidia"
+                    ? "bg-trust text-white"
+                    : "border border-ink/15 bg-card text-ink hover:bg-ink/5"
+                }`}
+              >
+                ⚡ NVIDIA NIM (z-ai/glm-5.3)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyModelPreset("google")}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-all ${
+                  provider === "google"
+                    ? "bg-trust text-white"
+                    : "border border-ink/15 bg-card text-ink hover:bg-ink/5"
+                }`}
+              >
+                ✨ Google Gemini (1.5 Flash)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyModelPreset("openai")}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-all ${
+                  provider === "openai"
+                    ? "bg-trust text-white"
+                    : "border border-ink/15 bg-card text-ink hover:bg-ink/5"
+                }`}
+              >
+                🌐 OpenAI / OpenRouter / Groq
+              </button>
+              <button
+                type="button"
+                onClick={() => applyModelPreset("local")}
+                className={`rounded-lg px-2.5 py-1 font-medium transition-all ${
+                  provider === "local"
+                    ? "bg-trust text-white"
+                    : "border border-ink/15 bg-card text-ink hover:bg-ink/5"
+                }`}
+              >
+                🔒 Local Offline (0-API)
+              </button>
+            </div>
+
+            <div className="mt-3.5 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block font-semibold text-ink/70">API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Defaults to .env.local API key..."
+                  className="mt-1 w-full rounded-xl border border-ink/15 bg-card px-3 py-1.5 text-xs font-mono text-ink placeholder:font-sans placeholder:text-ink/40 focus:border-trust focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-ink/70">Model Name</label>
+                <input
+                  type="text"
+                  value={modelName}
+                  onChange={(e) => setModelName(e.target.value)}
+                  placeholder="e.g. z-ai/glm-5.3 or gemini-1.5-flash"
+                  className="mt-1 w-full rounded-xl border border-ink/15 bg-card px-3 py-1.5 text-xs font-mono text-ink placeholder:font-sans placeholder:text-ink/40 focus:border-trust focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-[11px] text-ink/50">
+                Base URL: <code className="font-mono text-trust">{baseUrl}</code>
+              </span>
+              <button
+                type="button"
+                onClick={saveSettings}
+                className="cursor-pointer rounded-xl bg-trust px-3 py-1 text-xs font-semibold text-white transition-all hover:bg-trust-strong"
+              >
+                {savedSuccess ? "✓ Saved in Browser" : "Save Settings"}
+              </button>
+            </div>
+          </div>
+        )}
         <form
           onSubmit={(e) => {
             e.preventDefault();

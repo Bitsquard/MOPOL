@@ -42,7 +42,7 @@ async function main() {
     },
     {
       q: "what is the age",
-      expectedSnippet: "30–34",
+      expectedSnippet: "31",
       label: "Zero-Knowledge Age Verification",
     },
     {

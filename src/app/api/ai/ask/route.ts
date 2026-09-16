@@ -127,7 +127,14 @@ export async function POST(req: Request) {
     .join("\n\n");
   if (records) corpus.push(records);
 
-  const { answer: rawAnswer, backend } = await answerFromVault(question, corpus, candidateContext);
+  const llmConfig = {
+    apiKey: body.api_key ? String(body.api_key).trim() : undefined,
+    model: body.model ? String(body.model).trim() : undefined,
+    baseUrl: body.base_url ? String(body.base_url).trim() : undefined,
+    provider: body.provider ? String(body.provider).trim() : undefined,
+  };
+
+  const { answer: rawAnswer, backend } = await answerFromVault(question, corpus, candidateContext, llmConfig);
 
   // 3. EGRESS DATA LOSS PREVENTION (DLP)
   const { text: cleanAnswer } = sanitizeOutput(rawAnswer);
