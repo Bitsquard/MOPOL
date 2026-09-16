@@ -4,3 +4,4 @@ This directory contains memory records documenting changes, architectural update
 
 ## Records
 - [001-git-remote-and-push.md](./001-git-remote-and-push.md): Configured git remote to `https://github.com/Bitsquard/MOPOL.git`, set user to `damien15-5`, staged core platform implementation, and pushed to GitHub `main`.
+- [002-checkout-sub-branch.md](./002-checkout-sub-branch.md): Checked out and pulled remote tracking branch `sub` from `origin/sub` with Supabase data access layer changes.
