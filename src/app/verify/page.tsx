@@ -144,12 +144,31 @@ function VerifyInner() {
             {busy ? "Verifying…" : "Verify"}
           </Btn>
         </form>
-        <p className="mt-3 text-center text-xs text-ink/45">
-          No ID handy? Try the demo:&nbsp;
-          <button type="button" onClick={() => { setEid("BSQ-D3MO-2026"); run("BSQ-D3MO-2026"); }} className="cursor-pointer font-mono font-semibold text-trust hover:underline underline-offset-4">
-            BSQ-D3MO-2026
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <span className="text-xs font-medium text-ink/50">Demo Candidates:</span>
+          <button
+            type="button"
+            onClick={() => { setEid("BSQ-CYBR-2026"); run("BSQ-CYBR-2026"); }}
+            className={`cursor-pointer inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs font-semibold transition-all ${
+              eid === "BSQ-CYBR-2026"
+                ? "bg-trust text-white shadow-xs"
+                : "border border-trust/30 bg-mint/50 text-trust hover:bg-mint"
+            }`}
+          >
+            🛡️ Elena Vance (DevSecOps) · BSQ-CYBR-2026
           </button>
-        </p>
+          <button
+            type="button"
+            onClick={() => { setEid("BSQ-D3MO-2026"); run("BSQ-D3MO-2026"); }}
+            className={`cursor-pointer inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs font-semibold transition-all ${
+              eid === "BSQ-D3MO-2026"
+                ? "bg-trust text-white shadow-xs"
+                : "border border-ink/15 bg-card text-ink/75 hover:bg-paper"
+            }`}
+          >
+            ⚡ Amara Okafor (Payments) · BSQ-D3MO-2026
+          </button>
+        </div>
 
         {error && (
           <div role="alert" className="mx-auto mt-6 max-w-2xl rounded-2xl border border-danger/20 bg-danger-soft px-5 py-4 text-sm font-medium text-danger">
@@ -368,6 +387,47 @@ function VerifyInner() {
             <Reveal>
               <ProofConsole employabilityId={p.employability_id} defaultMin={21} />
             </Reveal>
+
+            {/* guest preview upgrade teaser */}
+            {result.viewer === "GUEST" && (
+              <Reveal>
+                <Card className="border border-trust/20 bg-card p-6 shadow-sm sm:p-8">
+                  <div className="flex items-center gap-3">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-trust text-white shadow-xs">
+                      <IconShield className="size-4.5" />
+                    </span>
+                    <div>
+                      <h3 className="text-base font-semibold text-ink">Locked Employer Verification Tools</h3>
+                      <p className="text-xs text-ink/60">Registered employers have verified access to run active fact screening over this candidate:</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-black/[0.06] bg-paper/60 p-4">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><IconLock className="size-3 text-trust" /> ZK Age Proofs</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink/55">Cryptographically prove 21+, 25+, or 30+ without revealing date of birth.</p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.06] bg-paper/60 p-4">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><IconCheck className="size-3 text-trust" /> 50-Point Screening</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink/55">Instant automated checks across identity, certifications, and experience.</p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.06] bg-paper/60 p-4">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><IconSparkle className="size-3 text-trust" /> AI Vault Q&A</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink/55">Query sealed candidate documents with active OWASP Prompt Firewall.</p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.06] bg-paper/60 p-4">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-ink"><IconFile className="size-3 text-trust" /> Trust Remarks</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-ink/55">Read supervisor performance ratings and certified loan-free tenures.</p>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex flex-col items-start justify-between gap-3 border-t border-black/[0.06] pt-4 sm:flex-row sm:items-center">
+                    <span className="text-xs text-ink/60">Log in with an employer account (e.g. <b className="font-mono text-ink">hr@demo.io</b>) to unlock full screening.</span>
+                    <BtnLink href="/login" variant="trust" className="!min-h-9 !px-4 !py-1.5 !text-xs">
+                      Sign In as Employer <IconArrowRight className="size-3.5" />
+                    </BtnLink>
+                  </div>
+                </Card>
+              </Reveal>
+            )}
 
             {/* employer power tools: 50-point screening + AI Q&A + remarks */}
             {result.viewer === "EMPLOYER" && (

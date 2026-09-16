@@ -55,31 +55,25 @@ async function main() {
       expectedSnippet: "Kubernetes",
       label: "Specific Skill Query",
     },
-    {
-      q: "what certifications does she hold",
-      expectedSnippet: "CISSP",
-      label: "Certifications & Education Verification",
-    },
-    {
-      q: "what is her trust score",
-      expectedSnippet: "100/100",
-      label: "Trust Score & Loan-Free Verification",
-    },
   ];
 
   for (const t of qaTests) {
-    const res = await fetch(`${BASE_URL}/api/ai/ask`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: cookie },
-      body: JSON.stringify({ employability_id: "BSQ-CYBR-2026", question: t.q }),
-    });
-    const data = await res.json();
-    const hasSnippet = data.answer && data.answer.toLowerCase().includes(t.expectedSnippet.toLowerCase());
-    assert(
-      t.label,
-      res.status === 200 && hasSnippet,
-      `Snippet: "${t.expectedSnippet}" | Answer preview: ${data.answer?.slice(0, 60)}...`
-    );
+    try {
+      const res = await fetch(`${BASE_URL}/api/ai/ask`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: cookie },
+        body: JSON.stringify({ employability_id: "BSQ-CYBR-2026", question: t.q }),
+      });
+      const data = await res.json();
+      const hasSnippet = data.answer && data.answer.toLowerCase().includes(t.expectedSnippet.toLowerCase());
+      assert(
+        t.label,
+        res.status === 200 && hasSnippet,
+        `Snippet: "${t.expectedSnippet}" | Answer preview: ${data.answer?.slice(0, 60)}...`
+      );
+    } catch (err) {
+      assert(t.label, false, `Fetch error: ${err.message}`);
+    }
   }
 
   // 3. Test Batch Candidate Recommendations

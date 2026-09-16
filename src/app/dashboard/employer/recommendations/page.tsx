@@ -261,16 +261,23 @@ export default function EmployerRecommendationsPage() {
             <IconSparkle className="size-4" /> 1-Click Test Scenarios:
           </div>
           <div className="mt-2.5 flex flex-wrap gap-2">
-            {PRESETS.map((p, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className="cursor-pointer rounded-xl border border-trust/25 bg-card px-3.5 py-1.5 text-xs font-medium text-ink transition-all duration-150 hover:border-trust hover:bg-mint hover:text-trust"
-              >
-                {p.title}
-              </button>
-            ))}
+            {PRESETS.map((p, idx) => {
+              const isActive = reqText === p.text;
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => applyPreset(p)}
+                  className={`cursor-pointer rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                    isActive
+                      ? "border border-trust bg-trust font-semibold text-white shadow-xs"
+                      : "border border-trust/25 bg-card text-ink hover:border-trust hover:bg-mint hover:text-trust"
+                  }`}
+                >
+                  {p.title}
+                </button>
+              );
+            })}
           </div>
         </div>
 

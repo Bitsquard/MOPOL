@@ -72,10 +72,18 @@ export async function POST(req: Request) {
 
   // 4. Evaluate each candidate
   const evaluated = [];
+  const seenUsers = new Set<string>();
+  const seenNames = new Set<string>();
 
   for (const p of profiles || []) {
     const candidateUser = userMap.get(p.user_id);
     if (!candidateUser) continue;
+
+    // Deduplicate profiles generated across multiple test seeds
+    const normalizedName = candidateUser.name.trim().toLowerCase();
+    if (seenUsers.has(p.user_id) || seenNames.has(normalizedName)) continue;
+    seenUsers.add(p.user_id);
+    seenNames.add(normalizedName);
 
     const empRemarks = remarksByEmp.get(p.user_id) || [];
     const trust = computeTrust(empRemarks);

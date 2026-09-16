@@ -140,31 +140,38 @@ export default function EmployerDashboard() {
               Verify <IconArrowRight className="size-4" />
             </Btn>
           </form>
-          <p className="mt-4 text-xs text-paper/45">
-            Testing? Use the seeded candidate:&nbsp;
+          <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-white/10 pt-4">
+            <span className="text-xs font-medium text-paper/50">Quick-verify demo profiles:</span>
+            <button
+              type="button"
+              onClick={() => router.push("/verify?eid=BSQ-CYBR-2026")}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-trust-light/30 bg-trust-light/10 px-3 py-1 font-mono text-xs font-semibold text-trust-light transition-all hover:border-trust-light hover:bg-trust-light/20"
+            >
+              🛡️ Elena Vance (Staff DevSecOps) · BSQ-CYBR-2026
+            </button>
             <button
               type="button"
               onClick={() => router.push("/verify?eid=BSQ-D3MO-2026")}
-              className="cursor-pointer font-mono font-semibold text-trust-light hover:underline underline-offset-4"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 font-mono text-xs font-semibold text-paper/80 transition-all hover:border-white/30 hover:bg-white/10"
             >
-              BSQ-D3MO-2026
+              ⚡ Amara Okafor (FinTech Lead) · BSQ-D3MO-2026
             </button>
-          </p>
+          </div>
         </div>
 
-        <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
           {/* ============ WHAT A QUERY RETURNS ============ */}
-          <Card>
+          <Card className="shadow-sm transition-all duration-200 hover:shadow-md">
             <CardHeader><span>What a query returns</span><span>Spec</span></CardHeader>
             <div className="divide-y divide-black/[0.05]">
               {SPEC.map((s) => (
-                <div key={s.t} className="flex gap-4 p-5 transition-colors duration-200 hover:bg-mint/40">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-mint text-trust">
+                <div key={s.t} className="flex gap-4 p-5 transition-colors duration-200 hover:bg-mint/30">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-mint text-trust shadow-xs">
                     <s.icon className="size-4" />
                   </span>
                   <div>
-                    <p className="text-sm font-semibold">{s.t}</p>
-                    <p className="mt-0.5 text-sm leading-relaxed text-ink/55">{s.d}</p>
+                    <p className="text-sm font-semibold text-ink">{s.t}</p>
+                    <p className="mt-0.5 text-sm leading-relaxed text-ink/60">{s.d}</p>
                   </div>
                 </div>
               ))}
@@ -172,8 +179,13 @@ export default function EmployerDashboard() {
           </Card>
 
           {/* ============ MY REMARKS ============ */}
-          <Card>
-            <CardHeader><span>Remarks you&apos;ve logged</span><span>{remarks.length}</span></CardHeader>
+          <Card className="shadow-sm transition-all duration-200 hover:shadow-md">
+            <CardHeader>
+              <span>Remarks you&apos;ve logged</span>
+              <span className="rounded-full bg-trust/10 px-2 py-0.5 text-xs font-semibold text-trust">
+                {remarks.filter((r, i, arr) => arr.findIndex((x) => x.remark_text === r.remark_text) === i).length} Verified
+              </span>
+            </CardHeader>
             <div className="divide-y divide-black/[0.05]">
               {remarks.length === 0 ? (
                 <div className="p-6">
@@ -183,29 +195,32 @@ export default function EmployerDashboard() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => router.push("/verify?eid=BSQ-D3MO-2026")}
+                    onClick={() => router.push("/verify?eid=BSQ-CYBR-2026")}
                     className="mt-4 inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-trust transition-colors hover:text-trust-strong"
                   >
-                    Try it on the demo candidate <IconArrowRight className="size-4" />
+                    Try it on Elena Vance <IconArrowRight className="size-4" />
                   </button>
                 </div>
               ) : (
-                remarks.map((r) => (
-                  <article key={r.id} className="p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <RatingStars value={r.performance_rating} />
-                      <div className="flex items-center gap-3 text-[11px] text-ink/45">
-                        {r.loan_free_status && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-mint px-2.5 py-0.5 font-semibold text-trust">
-                            <IconCheck className="size-3" /> Loan-free
-                          </span>
-                        )}
-                        <span>{new Date(r.created_at).toLocaleDateString()}</span>
+                remarks
+                  .filter((r, i, arr) => arr.findIndex((x) => x.remark_text === r.remark_text) === i)
+                  .slice(0, 6)
+                  .map((r) => (
+                    <article key={r.id} className="p-5 transition-colors duration-200 hover:bg-paper/40">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <RatingStars value={r.performance_rating} />
+                        <div className="flex items-center gap-2.5 text-[11px] text-ink/45">
+                          {r.loan_free_status && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-mint px-2.5 py-0.5 font-semibold text-trust">
+                              <IconCheck className="size-3" /> Loan-free
+                            </span>
+                          )}
+                          <span>{new Date(r.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
-                    </div>
-                    <p className="mt-3 text-sm leading-relaxed text-ink/75">{r.remark_text}</p>
-                  </article>
-                ))
+                      <p className="mt-3 text-sm leading-relaxed text-ink/80">{r.remark_text}</p>
+                    </article>
+                  ))
               )}
             </div>
           </Card>
