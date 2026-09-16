@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Btn,
@@ -14,6 +15,7 @@ import {
   IconEye,
   IconFile,
   IconArrowRight,
+  IconSparkle,
 } from "@/components/ui";
 import { api, DashboardNav } from "@/components/client";
 import type { EmployerRemark } from "@/lib/db";
@@ -67,9 +69,43 @@ export default function EmployerDashboard() {
 
   return (
     <main className="min-h-dvh">
-      <DashboardNav name={me.name} role={me.company ?? "Employer"} />
+      <DashboardNav
+        name={me.name}
+        role={me.company ?? "Employer"}
+        right={
+          <Link
+            href="/dashboard/employer/recommendations"
+            className="inline-flex items-center gap-1.5 rounded-full border border-trust/20 bg-mint px-3 py-1 text-xs font-semibold text-trust transition-colors hover:bg-trust hover:text-white"
+          >
+            <IconSparkle className="size-3.5" />
+            <span className="hidden sm:inline">Batch AI Screening</span>
+            <span className="sm:hidden">AI Matcher</span>
+          </Link>
+        }
+      />
 
       <div className="animate-fade-up mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        {/* ============ BATCH RECOMMENDATION CALLOUT ============ */}
+        <div className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-trust/25 bg-mint/40 p-4 sm:flex-row sm:items-center sm:px-6">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-trust text-white shadow-sm">
+              <IconSparkle className="size-4.5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-ink">Want to screen candidates by job requirements?</p>
+              <p className="text-xs text-ink/60">
+                Paste any job description, filter by age, location, and skills to get recommended candidates.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/employer/recommendations"
+            className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-trust px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-trust-strong"
+          >
+            Get Recommended Employees <IconArrowRight className="size-3.5" />
+          </Link>
+        </div>
+
         <h1 className="text-3xl font-semibold tracking-tight">
           Verify a <span className="accent-serif text-gradient-animated">candidate.</span>
         </h1>

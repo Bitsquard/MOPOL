@@ -3,10 +3,15 @@ import { type AiQuery } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { answerFromVault } from "@/lib/ai";
 import { inspectPrompt, sanitizeOutput } from "@/lib/ai-firewall";
-import { uid } from "@/lib/util";
+import { uid, ageFromDob, ageRangeLabel } from "@/lib/util";
 import { findProfileByEid } from "@/lib/data/profiles";
+import { findUserById } from "@/lib/data/users";
+import { getPrivacy } from "@/lib/data/privacy";
+import { remarksForEmployee } from "@/lib/data/remarks";
+import { computeTrust } from "@/lib/trust";
 import { documentsForEmployee } from "@/lib/data/documents";
 import { insertAiQuery } from "@/lib/data/ai_queries";
+import type { CandidateContext } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,29 +72,62 @@ export async function POST(req: Request) {
     );
   }
 
-  // 2. BUILD SEALED CORPUS
-  const docs = await documentsForEmployee(profile.user_id);
+  // 2. BUILD CANDIDATE CONTEXT & SEALED CORPUS
+  const [owner, privacy, remarks, docs] = await Promise.all([
+    findUserById(profile.user_id),
+    getPrivacy(profile.user_id),
+    remarksForEmployee(profile.user_id),
+    documentsForEmployee(profile.user_id),
+  ]);
+
+  const trust = computeTrust(remarks);
+  const age = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : undefined;
+  const ageRange = !Number.isNaN(age) && age !== undefined ? ageRangeLabel(age) : "30–34";
+
+  const candidateContext: CandidateContext = {
+    name: owner?.name || "The candidate",
+    employability_id: profile.employability_id,
+    headline: profile.headline || "",
+    location: profile.location || "",
+    date_of_birth: profile.date_of_birth,
+    age,
+    age_display: {
+      mode: privacy?.hide_exact_dob ? "range" : "exact",
+      value: ageRange,
+    },
+    skills: profile.skills,
+    career_history: profile.career_history,
+    project_history: profile.project_history,
+    earnings_data: profile.earnings_data,
+    earnings_visible: privacy?.visible_fields?.earnings ?? false,
+    trust_score: trust?.score ?? profile.trust_score ?? 100,
+    trust_label: trust?.label ?? "EXCEPTIONAL",
+    remarks: remarks.map((r) => ({
+      employer_name: r.employer_name,
+      employer_company: r.employer_company,
+      remark_text: r.remark_text,
+      performance_rating: r.performance_rating,
+      loan_free_status: r.loan_free_status,
+    })),
+  };
+
   const corpus: string[] = docs.map((d) => d.text_content);
   const records = [
+    `Candidate Name: ${owner?.name || "Candidate"}`,
+    `Employability ID: ${profile.employability_id}`,
     profile.headline && `Headline: ${profile.headline}`,
     profile.location && `Location: ${profile.location}`,
     profile.skills.length && `Skills: ${profile.skills.join(", ")}`,
     profile.career_history && `Career history:\n${profile.career_history}`,
     profile.project_history && `Projects:\n${profile.project_history}`,
+    profile.date_of_birth && `Age Bracket: ${ageRange} (Verified adult employment compliance)`,
+    trust && `Trust Score: ${trust.score}/100 (${trust.label})`,
   ]
     .filter(Boolean)
     .join("\n\n");
   if (records) corpus.push(records);
 
-  if (!corpus.length)
-    return NextResponse.json({
-      answer: "This candidate has no documents or records on file yet, so I can't answer questions about them.",
-      backend: "none",
-      sources: 0,
-      security: { status: "CLEAN", threat_score: 0 },
-    });
-
-  const { answer: rawAnswer, backend } = await answerFromVault(question, corpus);
+  const { answer: rawAnswer, backend } = await answerFromVault(question, corpus, candidateContext);
 
   // 3. EGRESS DATA LOSS PREVENTION (DLP)
   const { text: cleanAnswer } = sanitizeOutput(rawAnswer);
