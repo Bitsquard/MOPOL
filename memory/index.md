@@ -14,4 +14,5 @@ This directory contains memory records documenting changes, architectural update
 - [009-fix-requirements-check-and-layout-warnings.md](./009-fix-requirements-check-and-layout-warnings.md): Fixed TypeError on `/api/requirements/check` causing HTTP 500 when evaluating AI requirements, added candidate context & try-catch error handling, and added `data-scroll-behavior="smooth"` to layout.
 - [010-ui-cleanup-and-visual-polish.md](./010-ui-cleanup-and-visual-polish.md): Cleaned up and polished UI across Employer Dashboard, Verify Page, Recommendations Portal, and Panels; added one-click demo candidate switchers, guest capabilities matrix, and screening summary badges.
 - [011-generate-500-users-and-pdf-directory.md](./011-generate-500-users-and-pdf-directory.md): Batch-provisioned 500 distinct candidate identities across cybersecurity, engineering, AI, and systems, and exported them to an official formatted PDF directory (`mopol_500_candidate_identities.pdf`).
+- [012-pushed-to-origin-main.md](./012-pushed-to-origin-main.md): Synchronized and pushed all 28 commits to GitHub remote `origin/main` (`https://github.com/Bitsquard/MOPOL.git`).
 
