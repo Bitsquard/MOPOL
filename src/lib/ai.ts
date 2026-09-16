@@ -444,14 +444,15 @@ export async function evalAIRequirement(
 ): Promise<{ status: "met" | "unknown"; evidence: string }> {
   if (!corpus.length) return { status: "unknown", evidence: "No documents on file to check." };
 
-  if (AI_KEY) {
+  if (AI_KEY || GEMINI_KEY) {
     const llm = await callLLM(
       `${VAULT_SYSTEM} Reply in exactly this format: "YES — <one short evidence phrase>" or "UNKNOWN — <reason>".`,
       `SEALED DOCUMENTS:\n${corpus.join("\n\n---\n\n").slice(0, 12000)}\n\nREQUIREMENT: ${label}`
     );
-    if (llm) {
-      const yes = /^yes/i.test(llm);
-      const phrase = llm.replace(/^(yes|unknown)\s*[—–-]\s*/i, "").slice(0, 140);
+    if (llm?.answer) {
+      const text = llm.answer.trim();
+      const yes = /^yes/i.test(text);
+      const phrase = text.replace(/^(yes|unknown)\s*[—–-]\s*/i, "").slice(0, 140);
       return yes ? { status: "met", evidence: phrase || "Confirmed from documents." } : { status: "unknown", evidence: phrase || "Not evidenced in documents." };
     }
   }
