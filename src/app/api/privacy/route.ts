@@ -39,3 +39,15 @@ export async function PUT(req: Request) {
   const saved = await savePrivacy(privacy);
   return NextResponse.json({ ok: true, privacy: saved });
 }
+
+export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  if (user.role !== "EMPLOYEE")
+    return NextResponse.json({ error: "Only employee accounts have privacy controls." }, { status: 403 });
+
+  const privacy = await getPrivacy(user.id);
+  return NextResponse.json({ ok: true, privacy });
+}
+
+export const PATCH = PUT;

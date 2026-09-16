@@ -19,9 +19,8 @@ export const dynamic = "force-dynamic";
  *   3. the DOB policy (exact / range-only / hidden).
  * Raw private records never leave the vault.
  */
-export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const eid = String(body.employability_id ?? "").trim().toUpperCase();
+async function runVerification(rawEid: string) {
+  const eid = String(rawEid ?? "").trim().toUpperCase();
   if (!eid) return NextResponse.json({ error: "Enter an Employability ID." }, { status: 400 });
 
   const profile = await findProfileByEid(eid);
@@ -116,4 +115,16 @@ export async function POST(req: Request) {
     },
     assertions,
   });
+}
+
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const eid = String(body.employability_id ?? body.id ?? "").trim();
+  return runVerification(eid);
+}
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const eid = searchParams.get("employability_id") || searchParams.get("id") || "";
+  return runVerification(eid);
 }
