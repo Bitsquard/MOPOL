@@ -68,7 +68,7 @@ employer_remarks, **documents**, **ai_queries**), includes the trust-score trigg
 ## Stack
 
 Next.js 16 (App Router) · React 19 · Tailwind v4 · bcrypt sessions · HMAC proof receipts ·
-pdf-parse for document extraction · Supabase-ready · LLM-ready
+pdf-parse for document extraction · Supabase-ready · LLM-ready.
 
 ---
 © 2026 Mopol
