@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const FIELD_KEYS: (keyof VisibleFields)[] = [
   "photo",
   "headline",
+  "location",
   "career_history",
   "project_history",
   "earnings",

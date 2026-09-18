@@ -19,7 +19,7 @@ import {
 } from "@/components/ui";
 import { api, CopyButton, DashboardNav, FileField, Toggle } from "@/components/client";
 import { DocumentsCard } from "@/components/documents";
-import type { EmployeeProfile, PrivacySettings, EmployerRemark } from "@/lib/db";
+import { defaultPrivacy, type EmployeeProfile, type PrivacySettings, type EmployerRemark } from "@/lib/db";
 
 interface MeResponse {
   user: { id: string; name: string; email: string; role: string; profile_pic_url: string | null; onboarded: boolean } | null;
@@ -116,18 +116,25 @@ function EmployeeDashboard() {
   }
 
   async function updatePrivacy(patch: Record<string, unknown>) {
-    if (!me?.privacy) return;
+    if (!me?.user) return;
+    const currentPrivacy = me.privacy || defaultPrivacy(me.user.id);
     const next: PrivacySettings = {
-      ...me.privacy,
+      ...currentPrivacy,
       ...(patch.hide_exact_dob !== undefined ? { hide_exact_dob: !!patch.hide_exact_dob } : {}),
       ...(patch.show_age_range_only !== undefined ? { show_age_range_only: !!patch.show_age_range_only } : {}),
       visible_fields: patch.visible_fields
-        ? { ...me.privacy.visible_fields, ...(patch.visible_fields as object) }
-        : me.privacy.visible_fields,
+        ? { ...currentPrivacy.visible_fields, ...(patch.visible_fields as object) }
+        : currentPrivacy.visible_fields,
     };
     setMe({ ...me, privacy: next });
     setPrivacySaved(false);
-    await api("/api/privacy", { method: "PUT", body: JSON.stringify(patch) }).catch(() => {});
+    const res = await api<{ ok: boolean; privacy: PrivacySettings }>("/api/privacy", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }).catch(() => null);
+    if (res?.privacy) {
+      setMe((prev) => (prev ? { ...prev, privacy: res.privacy } : prev));
+    }
     setPrivacySaved(true);
     setTimeout(() => setPrivacySaved(false), 1500);
   }

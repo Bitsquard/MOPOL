@@ -10,7 +10,7 @@
 
 const AI_KEY = process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.OPENAI_API_KEY;
 const AI_BASE = process.env.AI_BASE_URL || "https://integrate.api.nvidia.com/v1";
-const AI_MODEL = process.env.AI_MODEL || "z-ai/glm-5.3";
+const AI_MODEL = process.env.AI_MODEL || "meta/llama-3.2-11b-vision-instruct";
 
 const GEMINI_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_AI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
@@ -141,6 +141,7 @@ export async function callLLM(
           contents: [{ parts: [{ text: user }] }],
           generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
         }),
+        signal: AbortSignal.timeout(8000),
       });
       if (res.ok) {
         const data = await res.json();
@@ -154,7 +155,10 @@ export async function callLLM(
 
   // OpenAI / NVIDIA NIM
   const baseUrl = (config?.baseUrl || AI_BASE).replace(/\/+$/, "");
-  const model = config?.model || AI_MODEL;
+  let model = config?.model || AI_MODEL;
+  if (model === "z-ai/glm-5.3" || model === "z-ai/glm-5.3-flash") {
+    model = "meta/llama-3.2-11b-vision-instruct";
+  }
   const isNvidia = baseUrl.includes("nvidia");
 
   try {
@@ -173,6 +177,7 @@ export async function callLLM(
         temperature: 0.2,
         max_tokens: 1024,
       }),
+      signal: AbortSignal.timeout(12000),
     });
 
     if (res.ok) {

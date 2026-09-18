@@ -10,7 +10,7 @@ import { getPrivacy } from "@/lib/data/privacy";
 import { remarksForEmployee } from "@/lib/data/remarks";
 import { computeTrust } from "@/lib/trust";
 import { documentsForEmployee } from "@/lib/data/documents";
-import { insertAiQuery } from "@/lib/data/ai_queries";
+import { insertAiQuery, countAiQueriesForCandidate, resetAiQueriesForCandidate } from "@/lib/data/ai_queries";
 import type { CandidateContext } from "@/lib/ai";
 
 export const runtime = "nodejs";
@@ -33,13 +33,41 @@ export async function POST(req: Request) {
   const eid = String(body.employability_id ?? "").trim().toUpperCase();
   const question = String(body.question ?? "").trim();
   if (!eid) return NextResponse.json({ error: "Enter an Employability ID." }, { status: 400 });
+
+  const profile = await findProfileByEid(eid);
+  if (!profile) return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
+
+  // Reset demo support
+  if (body.reset === true) {
+    await resetAiQueriesForCandidate(user.id, profile.user_id);
+    return NextResponse.json({
+      ok: true,
+      reset: true,
+      remaining: 3,
+      limit: 3,
+      message: "AI question quota reset for this candidate.",
+    });
+  }
+
   if (question.length < 4)
     return NextResponse.json({ error: "Ask a proper question (at least 4 characters)." }, { status: 400 });
   if (question.length > 500)
     return NextResponse.json({ error: "Question too long — 500 characters max." }, { status: 400 });
 
-  const profile = await findProfileByEid(eid);
-  if (!profile) return NextResponse.json({ error: "No candidate found for this Employability ID." }, { status: 404 });
+  // RATE LIMIT CHECK: Maximum 3 questions per candidate per employer
+  const MAX_QUESTIONS = 3;
+  const usedCount = await countAiQueriesForCandidate(user.id, profile.user_id);
+  if (usedCount >= MAX_QUESTIONS) {
+    return NextResponse.json(
+      {
+        error: "Question limit reached: You can ask a maximum of 3 questions per candidate.",
+        limit: MAX_QUESTIONS,
+        used: usedCount,
+        remaining: 0,
+      },
+      { status: 429 }
+    );
+  }
 
   // 1. INGRESS SECURITY INSPECTION (AI Firewall)
   const securityCheck = inspectPrompt(question);
@@ -149,17 +177,41 @@ export async function POST(req: Request) {
   };
   await insertAiQuery(log);
 
+  const remaining = Math.max(0, MAX_QUESTIONS - (usedCount + 1));
+
   return NextResponse.json({
     answer: cleanAnswer,
     backend,
     sources: docs.length,
     blocked: false,
+    quota: {
+      limit: MAX_QUESTIONS,
+      used: usedCount + 1,
+      remaining,
+    },
+    remaining,
     security: {
       status: "CLEAN",
       threat_score: 0,
       protection: "OWASP-LLM01 / LLM06 Active",
     },
     disclaimer: "AI answer grounded in this candidate's sealed documents. Documents are never shown raw.",
+  });
+}
+
+export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
+  const { searchParams } = new URL(req.url);
+  const eid = String(searchParams.get("employability_id") || "").trim().toUpperCase();
+  if (!eid) return NextResponse.json({ error: "Missing employability_id" }, { status: 400 });
+  const profile = await findProfileByEid(eid);
+  if (!profile) return NextResponse.json({ error: "Candidate not found" }, { status: 404 });
+  const used = await countAiQueriesForCandidate(user.id, profile.user_id);
+  return NextResponse.json({
+    limit: 3,
+    used,
+    remaining: Math.max(0, 3 - used),
   });
 }
 

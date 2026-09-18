@@ -121,7 +121,7 @@ export function defaultPrivacy(employeeId: string): PrivacySettings {
       career_history: true,
       project_history: true,
       earnings: false,
-      cv: true,
+      cv: false,
       trust: true,
       remarks: true,
     },

@@ -30,6 +30,11 @@ interface VerifyResponse {
   found: boolean;
   viewer: "OWNER" | "EMPLOYER" | "GUEST";
   verified_at: string;
+  ai_questions?: {
+    limit: number;
+    used: number;
+    remaining: number;
+  };
   profile: {
     employability_id: string;
     name: string;
@@ -207,9 +212,14 @@ function VerifyInner() {
             )}
             {result.viewer === "OWNER" && (
               <Reveal>
-                <div className="flex items-center gap-2.5 rounded-2xl border border-trust/20 bg-mint px-6 py-4 text-sm font-medium text-trust">
-                  <IconSparkle className="size-4" />
-                  Owner view — this is your own record, shown in full.
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-trust/20 bg-mint/50 px-6 py-4 text-sm font-medium text-trust">
+                  <div className="flex items-center gap-2.5">
+                    <IconSparkle className="size-4 shrink-0" />
+                    <span>Owner Live Preview — This reflects exactly what employers and public viewers see with your active privacy switches enforced.</span>
+                  </div>
+                  <Link href="/dashboard/employee" className="inline-flex items-center gap-1 text-xs font-semibold underline underline-offset-4 hover:text-trust-strong shrink-0">
+                    Edit switches in vault →
+                  </Link>
                 </div>
               </Reveal>
             )}
@@ -310,14 +320,14 @@ function VerifyInner() {
                     </span>
                   </div>
                   <div className="p-6">
-                    {p.cv_url ? (
+                    {p.fields.cv && p.cv_url ? (
                       <a href={p.cv_url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-ink/15 px-5 text-sm font-semibold transition-all duration-200 hover:border-trust hover:text-trust">
                         <IconFile className="size-4" /> Open CV ↗
                       </a>
                     ) : p.fields.cv ? (
                       <p className="text-sm text-ink/45">No CV uploaded.</p>
                     ) : (
-                      <Redacted label="CV sealed by candidate" />
+                      <Redacted label="CV sealed by candidate — AI Q&A available below" />
                     )}
                   </div>
                 </Card>
@@ -438,7 +448,7 @@ function VerifyInner() {
                   <RequirementsPanel employabilityId={p.employability_id} />
                 </Reveal>
                 <Reveal>
-                  <AskPanel employabilityId={p.employability_id} />
+                  <AskPanel employabilityId={p.employability_id} initialQuota={result.ai_questions} />
                 </Reveal>
                 <Reveal>
                   <RemarkForm employabilityId={p.employability_id} onDone={() => run(p.employability_id)} />

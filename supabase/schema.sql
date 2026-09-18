@@ -93,7 +93,7 @@ create table if not exists privacy_settings (
   visible_fields       jsonb   not null default '{
     "photo": true, "headline": true, "location": true,
     "career_history": true, "project_history": true,
-    "earnings": false, "cv": true, "trust": true, "remarks": true
+    "earnings": false, "cv": false, "trust": true, "remarks": true
   }'::jsonb,
   updated_at           timestamptz not null default now()
 );
