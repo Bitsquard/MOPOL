@@ -322,17 +322,24 @@ const SECURITY_TESTS = [
   },
 ];
 
-export function AskPanel({ employabilityId }: { employabilityId: string }) {
+export function AskPanel({
+  employabilityId,
+  initialQuota,
+}: {
+  employabilityId: string;
+  initialQuota?: { limit: number; used: number; remaining: number };
+}) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<QA[]>([]);
+  const [quota, setQuota] = useState(initialQuota ?? { limit: 3, used: 0, remaining: 3 });
 
   // Configurable Model State
   const [showSettings, setShowSettings] = useState(false);
   const [provider, setProvider] = useState<string>("nvidia");
   const [apiKey, setApiKey] = useState<string>("");
-  const [modelName, setModelName] = useState<string>("z-ai/glm-5.3");
+  const [modelName, setModelName] = useState<string>("meta/llama-3.2-11b-vision-instruct");
   const [baseUrl, setBaseUrl] = useState<string>("https://integrate.api.nvidia.com/v1");
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -343,11 +350,24 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
       const savedBase = localStorage.getItem("mopol_ai_base");
       const savedProv = localStorage.getItem("mopol_ai_provider");
       if (savedKey) setApiKey(savedKey);
-      if (savedModel) setModelName(savedModel);
+      if (savedModel && savedModel !== "z-ai/glm-5.3" && savedModel !== "z-ai/glm-5.3-flash") {
+        setModelName(savedModel);
+      } else {
+        setModelName("meta/llama-3.2-11b-vision-instruct");
+      }
       if (savedBase) setBaseUrl(savedBase);
       if (savedProv) setProvider(savedProv);
     } catch {}
-  }, []);
+
+    // Fetch live quota if not provided initially
+    if (!initialQuota) {
+      api<{ limit: number; used: number; remaining: number }>(
+        `/api/ai/ask?employability_id=${encodeURIComponent(employabilityId)}`
+      )
+        .then((d) => setQuota(d))
+        .catch(() => {});
+    }
+  }, [employabilityId, initialQuota]);
 
   function saveSettings() {
     try {
@@ -364,7 +384,7 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
     setProvider(p);
     if (p === "nvidia") {
       setBaseUrl("https://integrate.api.nvidia.com/v1");
-      setModelName("z-ai/glm-5.3");
+      setModelName("meta/llama-3.2-11b-vision-instruct");
     } else if (p === "google") {
       setBaseUrl("https://generativelanguage.googleapis.com/v1beta");
       setModelName("gemini-1.5-flash");
@@ -373,6 +393,22 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
       setModelName("gpt-4o-mini");
     } else {
       setModelName("local-extractive");
+    }
+  }
+
+  async function resetQuota() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/api/ai/ask", {
+        method: "POST",
+        body: JSON.stringify({ employability_id: employabilityId, reset: true }),
+      });
+      setQuota({ limit: 3, used: 0, remaining: 3 });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -386,6 +422,8 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
         backend: string;
         sources: number;
         blocked?: boolean;
+        quota?: { limit: number; used: number; remaining: number };
+        remaining?: number;
         security?: {
           status: "CLEAN" | "BLOCKED";
           threat_score: number;
@@ -403,6 +441,13 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
           provider: provider || undefined,
         }),
       });
+
+      if (data.quota) {
+        setQuota(data.quota);
+      } else if (data.remaining !== undefined) {
+        setQuota({ limit: 3, used: 3 - data.remaining, remaining: data.remaining });
+      }
+
       setHistory((h) => [
         {
           q: question,
@@ -416,6 +461,9 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
       ]);
       setQ("");
     } catch (err: any) {
+      if (err.message && err.message.includes("limit reached")) {
+        setQuota((prev) => ({ ...prev, remaining: 0, used: 3 }));
+      }
       setError(err.message);
     } finally {
       setBusy(false);
@@ -428,7 +476,21 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
         <span className="flex items-center gap-2">
           <IconSparkle className="size-4 text-trust" /> Ask the AI about this candidate
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+              quota.remaining > 0
+                ? "border border-trust/30 bg-mint text-trust"
+                : "border border-danger/30 bg-danger-soft text-danger"
+            }`}
+          >
+            <span
+              className={`size-1.5 rounded-full ${
+                quota.remaining > 0 ? "bg-trust animate-pulse" : "bg-danger"
+              }`}
+            />
+            {quota.remaining} of {quota.limit} questions remaining
+          </span>
           <button
             type="button"
             onClick={() => setShowSettings(!showSettings)}
@@ -436,7 +498,7 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
           >
             ⚙️ Model: <span className="font-mono text-trust">{modelName}</span>
           </button>
-          <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
+          <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
             AI Firewall Active
           </span>
@@ -462,7 +524,7 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
                     : "border border-ink/15 bg-card text-ink hover:bg-ink/5"
                 }`}
               >
-                ⚡ NVIDIA NIM (z-ai/glm-5.3)
+                ⚡ NVIDIA NIM (Llama 3.2 11B)
               </button>
               <button
                 type="button"
@@ -537,24 +599,44 @@ export function AskPanel({ employabilityId }: { employabilityId: string }) {
             </div>
           </div>
         )}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask(q);
-          }}
-          className="flex flex-col gap-2.5 sm:flex-row"
-        >
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Ask anything — experience, skills, availability, education…"
-            aria-label="Ask the AI about this candidate"
-            className="min-h-12 flex-1 rounded-xl border border-ink/15 bg-card px-4 text-sm transition-all duration-200 placeholder:text-ink/35 hover:border-ink/25 focus:border-trust focus:outline-none focus:ring-4 focus:ring-trust/15"
-          />
-          <Btn type="submit" variant="trust" disabled={busy || q.trim().length < 4}>
-            {busy ? "Thinking…" : "Ask"} <IconArrowRight className="size-4" />
-          </Btn>
-        </form>
+        {quota.remaining <= 0 ? (
+          <div className="rounded-2xl border border-danger/30 bg-danger-soft p-4.5 text-xs text-danger font-medium flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <IconLock className="size-4 shrink-0 text-danger" />
+              <span>
+                <b>Rate limit reached:</b> Employers can ask up to 3 questions per candidate to ensure selective disclosure.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={resetQuota}
+              disabled={busy}
+              className="cursor-pointer rounded-xl border border-danger/40 bg-white px-3 py-1 text-xs font-semibold text-danger shadow-xs transition-all hover:bg-danger-soft"
+            >
+              Reset 3-Question Quota (Demo)
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              ask(q);
+            }}
+            className="flex flex-col gap-2.5 sm:flex-row"
+          >
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Ask anything — experience, skills, availability, education…"
+              aria-label="Ask the AI about this candidate"
+              disabled={busy}
+              className="min-h-12 flex-1 rounded-xl border border-ink/15 bg-card px-4 text-sm transition-all duration-200 placeholder:text-ink/35 hover:border-ink/25 focus:border-trust focus:outline-none focus:ring-4 focus:ring-trust/15 disabled:opacity-50"
+            />
+            <Btn type="submit" variant="trust" disabled={busy || q.trim().length < 4}>
+              {busy ? "Thinking…" : `Ask (${quota.remaining} left)`} <IconArrowRight className="size-4" />
+            </Btn>
+          </form>
+        )}
 
         <div className="mt-4 space-y-2">
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink/50">

@@ -7,6 +7,7 @@ import { findProfileByEid } from "@/lib/data/profiles";
 import { findUserById } from "@/lib/data/users";
 import { getPrivacy } from "@/lib/data/privacy";
 import { remarksForEmployee } from "@/lib/data/remarks";
+import { countAiQueriesForCandidate } from "@/lib/data/ai_queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,8 +15,8 @@ export const dynamic = "force-dynamic";
 /**
  * Employability ID lookup.
  * Returns a candidate profile filtered through THREE gates:
- *   1. the candidate's own privacy switches,
- *   2. the viewer's clearance (guest vs employer vs the candidate themself),
+ *   1. the candidate's own privacy switches (strictly enforced live for public & employer views),
+ *   2. the viewer's clearance (guest vs employer vs owner preview),
  *   3. the DOB policy (exact / range-only / hidden).
  * Raw private records never leave the vault.
  */
@@ -39,18 +40,24 @@ async function runVerification(rawEid: string) {
 
   // Guests get a restricted preview regardless of candidate switches.
   const guestHidden: (keyof VisibleFields)[] = ["location", "career_history", "project_history", "earnings", "cv", "remarks"];
+  
+  // Privacy switches are ALWAYS enforced. Both the employer and the candidate previewing their public profile
+  // see ONLY what the candidate has toggled ON.
   const canSee = (f: keyof VisibleFields) =>
-    isSelf ? true : viewerRole === "GUEST" ? vis[f] && !guestHidden.includes(f) : vis[f];
+    viewerRole === "GUEST" ? vis[f] && !guestHidden.includes(f) : vis[f];
 
-  // DOB policy — exact date is only revealed if the candidate allows it.
+  // DOB policy — exact date is only revealed if the candidate explicitly unsealed it.
   const age = profile.date_of_birth ? ageFromDob(profile.date_of_birth) : NaN;
   let dob_display: { mode: "exact" | "range" | "hidden"; value: string | null };
-  if (isSelf) dob_display = { mode: "exact", value: profile.date_of_birth || null };
-  else if (!profile.date_of_birth) dob_display = { mode: "hidden", value: null };
-  else if (!privacy.hide_exact_dob) dob_display = { mode: "exact", value: profile.date_of_birth };
-  else if (privacy.show_age_range_only && !Number.isNaN(age))
+  if (!profile.date_of_birth) {
+    dob_display = { mode: "hidden", value: null };
+  } else if (!privacy.hide_exact_dob) {
+    dob_display = { mode: "exact", value: profile.date_of_birth };
+  } else if (privacy.show_age_range_only && !Number.isNaN(age)) {
     dob_display = { mode: "range", value: ageRangeLabel(age) };
-  else dob_display = { mode: "hidden", value: null };
+  } else {
+    dob_display = { mode: "hidden", value: null };
+  }
 
   const allRemarks = await remarksForEmployee(owner.id);
   const trust = computeTrust(allRemarks);
@@ -84,10 +91,26 @@ async function runVerification(rawEid: string) {
     remarks: canSee("remarks"),
   };
 
+  // Employer question quota check
+  let ai_questions = {
+    limit: 3,
+    used: 0,
+    remaining: 3,
+  };
+  if (viewer && viewerRole === "EMPLOYER") {
+    const used = await countAiQueriesForCandidate(viewer.id, owner.id);
+    ai_questions = {
+      limit: 3,
+      used,
+      remaining: Math.max(0, 3 - used),
+    };
+  }
+
   return NextResponse.json({
     found: true,
     viewer: viewerRole,
     verified_at: new Date().toISOString(),
+    ai_questions,
     profile: {
       employability_id: profile.employability_id,
       name: owner.name,
@@ -125,6 +148,10 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const eid = searchParams.get("employability_id") || searchParams.get("id") || "";
+  const eid =
+    searchParams.get("employability_id") ||
+    searchParams.get("eid") ||
+    searchParams.get("id") ||
+    "";
   return runVerification(eid);
 }
